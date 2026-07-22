@@ -16,7 +16,7 @@
   --blue:#1661b8; --blue-l:#2478d4; --purple:#6b21e8; --green:#00c896;
   --red:#ff4d6d; --orange:#ff9500; --teal:#00c896;
   --text:#eef2ff; --muted:rgba(238,242,255,.45); --muted2:rgba(238,242,255,.30);
-  --c-b3:#2478d4; --c-ext:#ff9500; --c-cripto:#00c896;
+  --c-b3:#2478d4; --c-ext:#ff9500; --c-cripto:#00c896; --c-rf:#9085e9;
   --tab-h:64px; --sab:env(safe-area-inset-bottom,0px);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -337,7 +337,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 const API = 'https://script.google.com/macros/s/AKfycbzzg3AeLqPlItZ35hdVXIFUwJTNGJ7tAj8IAowWbELvgRJoSmDULggvl7SlZpi_T-09Aw/exec';
 const PIN_KEY = 'carteira_pin_v1';
 let PIN = '';
-let S = { b3: [], ext: [], cripto: [], fx: 1, fx_prev: 1, caixaExtUsd: 0, ops: [], historico: [] };
+let S = { b3: [], ext: [], cripto: [], rendaFixa: [], fx: 1, fx_prev: 1, caixaExtUsd: 0, ops: [], historico: [] };
 
 async function callAPI(action, params) {
   params = params || {};
@@ -373,15 +373,17 @@ function compute(){
   const b3=S.b3.map(p=>enrich(p,1,1));
   const ext=S.ext.map(p=>enrich(p,fx,fxp));
   const cr=(S.cripto||[]).map(p=>enrich(p,fx,fxp));
+  const rf=(S.rendaFixa||[]).map(p=>enrich(p,1,1));
   const totB3=sum(b3,'valor'), totB3a=sum(b3,'valorAnt');
   const caixa=(S.caixaExtUsd||0);
   const totExt=sum(ext,'valor')+caixa*fx, totExta=sum(ext,'valorAnt')+caixa*fxp;
   const totCr=sum(cr,'valor'), totCra=sum(cr,'valorAnt');
-  const total=totB3+totExt+totCr, totalA=totB3a+totExta+totCra;
+  const totRf=sum(rf,'valor'), totRfa=sum(rf,'valorAnt');
+  const total=totB3+totExt+totCr+totRf, totalA=totB3a+totExta+totCra+totRfa;
   // L/P vs medio (so quem tem pm)
   let custo=0, valorComPm=0;
-  b3.concat(ext,cr).forEach(p=>{ if(p.pm!=null){ custo+=p.pm*p.qtd*(p.moeda==='USD'?fx:1); valorComPm+=p.valor; }});
-  return {b3,ext,cr,fx,totB3,totB3a,totExt,totExta,totCr,totCra,total,totalA,
+  b3.concat(ext,cr,rf).forEach(p=>{ if(p.pm!=null){ custo+=p.pm*p.qtd*(p.moeda==='USD'?fx:1); valorComPm+=p.valor; }});
+  return {b3,ext,cr,rf,fx,totB3,totB3a,totExt,totExta,totCr,totCra,totRf,totRfa,total,totalA,
     varDia:totalA?(total/totalA-1)*100:0, difDia:total-totalA,
     lpTot:custo?(valorComPm-custo)/custo*100:0, lpDif:valorComPm-custo};
 }
@@ -407,17 +409,18 @@ let allocFocus=null; // null = macro | 'b3' | 'ext' | 'cripto'
 function allocGroup(c,g){
   return {b3:{arr:c.b3,tot:c.totB3,label:'Ações B3'},
     ext:{arr:c.ext,tot:c.totExt,label:'Exterior · Avenue'},
-    cripto:{arr:c.cr,tot:c.totCr,label:'Cripto · Binance'}}[g];
+    cripto:{arr:c.cr,tot:c.totCr,label:'Cripto · Binance'},
+    rf:{arr:c.rf,tot:c.totRf,label:'Renda Fixa'}}[g];
 }
 function renderAllocCard(c){
-  const pB3=c.total?c.totB3/c.total*100:0, pExt=c.total?c.totExt/c.total*100:0, pCr=c.total?c.totCr/c.total*100:0;
+  const pB3=c.total?c.totB3/c.total*100:0, pExt=c.total?c.totExt/c.total*100:0, pCr=c.total?c.totCr/c.total*100:0, pRf=c.total?c.totRf/c.total*100:0;
   if(!allocFocus){
-    const g1=pB3, g2=pB3+pExt;
+    const g1=pB3, g2=pB3+pExt, g3=pB3+pExt+pCr;
     return `<div class="card">
       <div class="lbl" style="margin-bottom:16px">Alocação</div>
       <div class="alloc">
         <div class="donut">
-          <div class="ring" style="background:conic-gradient(var(--c-b3) 0 ${g1}%,var(--c-ext) ${g1}% ${g2}%,var(--c-cripto) ${g2}% 100%)"></div>
+          <div class="ring" style="background:conic-gradient(var(--c-b3) 0 ${g1}%,var(--c-ext) ${g1}% ${g2}%,var(--c-cripto) ${g2}% ${g3}%,var(--c-rf) ${g3}% 100%)"></div>
           <div class="hole"></div>
           <div class="center"><div class="t">Total</div><div class="v num">${(c.total/1000).toFixed(0)}k</div></div>
         </div>
@@ -425,6 +428,7 @@ function renderAllocCard(c){
           <div class="leg" data-g="b3"><span class="dot" style="background:var(--c-b3)"></span><span class="n">Ações B3</span><span class="v num">${brl(c.totB3)}</span><span class="p num">${pB3.toFixed(0)}%</span><span class="arrow">›</span></div>
           <div class="leg" data-g="ext"><span class="dot" style="background:var(--c-ext)"></span><span class="n">Exterior</span><span class="v num">${brl(c.totExt)}</span><span class="p num">${pExt.toFixed(0)}%</span><span class="arrow">›</span></div>
           <div class="leg" data-g="cripto"><span class="dot" style="background:var(--c-cripto)"></span><span class="n">Cripto</span><span class="v num">${c.totCr>0?brl(c.totCr):'—'}</span><span class="p num">${pCr.toFixed(0)}%</span><span class="arrow">›</span></div>
+          <div class="leg" data-g="rf"><span class="dot" style="background:var(--c-rf)"></span><span class="n">Renda Fixa</span><span class="v num">${c.totRf>0?brl(c.totRf):'—'}</span><span class="p num">${pRf.toFixed(0)}%</span><span class="arrow">›</span></div>
         </div>
       </div>
       <div class="alloc-hint">Toque num grupo para ver a composição por ativo dentro dele.</div>
@@ -499,13 +503,13 @@ function renderHistCard(){
 
 function renderResumo(){
   const c=compute();
-  const all=c.b3.concat(c.ext,c.cr).filter(x=>x.varDia!=null);
+  const all=c.b3.concat(c.ext,c.cr,c.rf).filter(x=>x.varDia!=null);
   const byDay=[...all].sort((a,b)=>b.varDia-a.varDia);
   const altas=byDay.slice(0,3), baixas=byDay.slice(-3).reverse();
-  const byLp=c.b3.concat(c.ext,c.cr).filter(x=>x.lpPct!=null).sort((a,b)=>b.lpPct-a.lpPct);
+  const byLp=c.b3.concat(c.ext,c.cr,c.rf).filter(x=>x.lpPct!=null).sort((a,b)=>b.lpPct-a.lpPct);
   const topLp=byLp;
   const maxLp=Math.max(...topLp.map(x=>Math.abs(x.lpPct)),1);
-  const grupos=[{n:'Brasil',arr:c.b3},{n:'EUA',arr:c.ext},{n:'Cripto',arr:c.cr}]
+  const grupos=[{n:'Brasil',arr:c.b3},{n:'EUA',arr:c.ext},{n:'Cripto',arr:c.cr},{n:'Renda Fixa',arr:c.rf}]
     .map(g=>({...g,...grpLp(g.arr,c.fx)})).filter(g=>g.hasPm).sort((a,b)=>b.pct-a.pct);
   const maxGrpLp=Math.max(...grupos.map(g=>Math.abs(g.pct)),1);
 
@@ -572,6 +576,7 @@ function renderPosicoes(){
     {t:'Ações B3',d:'var(--c-b3)',arr:c.b3,tot:c.totB3},
     {t:'Exterior · Avenue',d:'var(--c-ext)',arr:c.ext,tot:c.totExt},
     {t:'Cripto · Binance',d:'var(--c-cripto)',arr:c.cr,tot:c.totCr},
+    {t:'Renda Fixa',d:'var(--c-rf)',arr:c.rf,tot:c.totRf},
   ];
   let h='<div class="pos-hint">Toque em uma posição para <b>comprar mais</b> ou <b>vender</b> (parcial ou tudo).</div>';
   groups.forEach(g=>{
