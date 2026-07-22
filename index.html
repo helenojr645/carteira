@@ -58,6 +58,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .pad button.ok{color:var(--green)}
 .pad button:disabled{opacity:.4}
 .lock-msg{min-height:16px;color:var(--red);font-size:12px;text-align:center;margin-top:14px}
+.lock-spinner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+.spinner{width:38px;height:38px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:var(--blue-l);animation:spin .8s linear infinite}
 
 /* ---------- APP ---------- */
 .app{position:relative;z-index:1;max-width:480px;margin:0 auto;
@@ -136,6 +138,15 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .rbar .track{flex:1;height:8px;background:rgba(255,255,255,.07);border-radius:5px;position:relative;overflow:hidden}
 .rbar .fill{position:absolute;top:0;bottom:0;border-radius:5px}
 .rbar .pc{width:62px;text-align:right;font-size:13px;font-weight:700}
+
+/* historico x cdi */
+.hist-hdr{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px}
+.hist-leg{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.hist-leg b{font-size:14px;font-weight:800;margin-left:1px}
+.hist-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.hist-dash{width:14px;height:0;border-top:2px dashed rgba(238,242,255,.42);flex-shrink:0}
+.hist-chart{width:100%;height:110px;display:block}
+.hist-range{font-size:11px;color:var(--muted2);text-align:right;margin-top:8px}
 
 /* position rows */
 .pos{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -235,6 +246,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   <div class="dots" id="dots"><i></i></div>
   <div class="pad" id="pad"></div>
   <div class="lock-msg" id="lockMsg"></div>
+  <div class="lock-spinner hidden" id="lockSpinner"><div class="spinner"></div></div>
 </div>
 
 <!-- APP -->
@@ -325,7 +337,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 const API = 'https://script.google.com/macros/s/AKfycbzzg3AeLqPlItZ35hdVXIFUwJTNGJ7tAj8IAowWbELvgRJoSmDULggvl7SlZpi_T-09Aw/exec';
 const PIN_KEY = 'carteira_pin_v1';
 let PIN = '';
-let S = { b3: [], ext: [], cripto: [], fx: 1, fx_prev: 1, caixaExtUsd: 0, ops: [] };
+let S = { b3: [], ext: [], cripto: [], fx: 1, fx_prev: 1, caixaExtUsd: 0, ops: [], historico: [] };
 
 async function callAPI(action, params) {
   params = params || {};
@@ -447,6 +459,44 @@ function renderAllocCard(c){
   </div>`;
 }
 
+function renderHistCard(){
+  const hist=(S.historico||[]);
+  if(hist.length<2){
+    return `<div class="card"><div class="empty"><span class="em">📈</span>
+      O gráfico de evolução do patrimônio começa a ser registrado a partir de hoje — um ponto por dia. Em poucos dias você vê sua curva de crescimento aqui.</div>
+    </div>`;
+  }
+  let accC=1, accD=1;
+  const pts=hist.map(h=>{
+    accC*=(1+(h.varDiaPct||0)/100);
+    accD*=(1+(h.cdiDiaPct||0)/100);
+    return {cart:(accC-1)*100, cdi:(accD-1)*100};
+  });
+  const all=pts.flatMap(p=>[p.cart,p.cdi]);
+  let min=Math.min(0,...all), max=Math.max(0,...all);
+  if(min===max){ min-=1; max+=1; }
+  const W=280,H=110,PAD=6;
+  const x=i=>PAD+(W-2*PAD)*(i/(pts.length-1));
+  const y=v=>H-PAD-(H-2*PAD)*((v-min)/(max-min));
+  const lineC=pts.map((p,i)=>`${x(i).toFixed(1)},${y(p.cart).toFixed(1)}`).join(' ');
+  const lineD=pts.map((p,i)=>`${x(i).toFixed(1)},${y(p.cdi).toFixed(1)}`).join(' ');
+  const last=pts[pts.length-1];
+  return `<div class="card">
+    <div class="hist-hdr">
+      <div class="hist-leg"><span class="hist-dot" style="background:var(--blue-l)"></span>Carteira <b class="num ${cls(last.cart)}">${pct(last.cart)}</b></div>
+      <div class="hist-leg"><span class="hist-dash"></span>CDI <b class="num ${cls(last.cdi)}">${pct(last.cdi)}</b></div>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" class="hist-chart" preserveAspectRatio="none">
+      <line x1="${PAD}" y1="${y(0).toFixed(1)}" x2="${W-PAD}" y2="${y(0).toFixed(1)}" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
+      <polyline points="${lineD}" fill="none" stroke="rgba(238,242,255,.42)" stroke-width="2" stroke-dasharray="4 3" stroke-linecap="round" stroke-linejoin="round"/>
+      <polyline points="${lineC}" fill="none" stroke="var(--blue-l)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${x(pts.length-1).toFixed(1)}" cy="${y(last.cdi).toFixed(1)}" r="3" fill="rgba(238,242,255,.55)"/>
+      <circle cx="${x(pts.length-1).toFixed(1)}" cy="${y(last.cart).toFixed(1)}" r="3.5" fill="var(--blue-l)"/>
+    </svg>
+    <div class="hist-range">${hist[0].data} — ${hist[hist.length-1].data}</div>
+  </div>`;
+}
+
 function renderResumo(){
   const c=compute();
   const all=c.b3.concat(c.ext,c.cr).filter(x=>x.varDia!=null);
@@ -497,10 +547,8 @@ function renderResumo(){
       `<div class="empty">Informe o preço médio de algum ativo para ver a rentabilidade por mercado.</div>`}
   </div>
 
-  <div class="sec-t">Patrimônio diário</div>
-  <div class="card"><div class="empty"><span class="em">📈</span>
-    O gráfico de evolução do patrimônio começa a ser registrado <b>a partir de hoje</b> — um ponto por dia. Em poucos dias você vê sua curva de crescimento aqui.</div>
-  </div>`;
+  <div class="sec-t">Resultado acumulado × CDI</div>
+  ${renderHistCard()}`;
 
   document.querySelectorAll('#t-resumo .leg[data-g]').forEach(el=>el.onclick=()=>{ allocFocus=el.dataset.g; renderResumo(); });
   const allocBack=document.getElementById('allocBack');
@@ -660,10 +708,10 @@ async function tryLogin(){
   if(!pinBuf) return;
   const val=pinBuf;
   document.querySelectorAll('#pad button').forEach(b=>b.disabled=true);
-  document.getElementById('lockMsg').textContent='Entrando...';
+  document.getElementById('lockSpinner').classList.remove('hidden');
   const err=await attemptLogin(val);
   document.querySelectorAll('#pad button').forEach(b=>b.disabled=false);
-  document.getElementById('lockMsg').textContent='';
+  document.getElementById('lockSpinner').classList.add('hidden');
   if(err){
     document.getElementById('lockMsg').textContent='Senha incorreta.';
     dotsEl.classList.add('err'); pinBuf=''; setTimeout(drawDots,350);
