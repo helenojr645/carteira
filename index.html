@@ -220,7 +220,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .field input,.field select{width:100%;font-size:16px;color:var(--text);background:var(--card);
   border:1px solid var(--card-b);border-radius:14px;padding:14px;font-family:inherit}
 .field input:focus,.field select:focus{outline:none;border-color:var(--blue-l)}
-.seg{display:flex;gap:8px}
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+.seg button{min-width:calc(50% - 4px)}
 .seg button{flex:1;padding:12px;border-radius:14px;border:1px solid var(--card-b);background:var(--card);
   color:var(--muted);font-size:13px;font-weight:700;cursor:pointer}
 .seg button.on{background:rgba(36,120,212,.2);border-color:var(--blue-l);color:var(--text)}
@@ -287,6 +288,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
         <button data-g="b3" class="on">Ação B3</button>
         <button data-g="ext">Exterior</button>
         <button data-g="cripto">Cripto</button>
+        <button data-g="rendaFixa">Renda Fixa</button>
       </div>
     </div>
     <div class="field"><label>Código / Ticker</label><input id="fTk" placeholder="ex: PETR4" autocapitalize="characters"></div>
@@ -561,7 +563,9 @@ function renderResumo(){
 
 function grpRow(p){
   const lp = p.lpPct!=null? `<span class="chip ${cls(p.lpPct)}">${pct(p.lpPct)}</span>` : `<span class="chip mut">s/ médio</span>`;
-  const sub = p.moeda==='USD'? `${usd(p.preco)} · ${p.qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})} cotas` : `${brl(p.preco)} · ${p.qtd.toLocaleString('pt-BR')} un`;
+  const sub = p.moeda==='USD'? `${usd(p.preco)} · ${p.qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})} cotas`
+    : p.indexador ? `${brl(p.preco)} · ${p.qtd.toLocaleString('pt-BR',{maximumFractionDigits:4})} títulos`
+    : `${brl(p.preco)} · ${p.qtd.toLocaleString('pt-BR')} un`;
   return `<div class="pos" data-tk="${p.tk}">
     <div class="ico">${p.tk.slice(0,2)}</div>
     <div class="mid"><div class="tk">${p.tk}</div><div class="nm">${p.nome}</div><div class="qt">${sub}</div></div>
@@ -610,7 +614,7 @@ function renderOperacoes(){
 }
 
 // ---- ops ----
-function findPos(tk){ for(const g of ['b3','ext','cripto']){ const i=(S[g]||[]).findIndex(p=>p.tk===tk); if(i>=0) return {g,i}; } return null; }
+function findPos(tk){ for(const g of ['b3','ext','cripto','rendaFixa']){ const i=(S[g]||[]).findIndex(p=>p.tk===tk); if(i>=0) return {g,i}; } return null; }
 let opTk=null;
 function openOp(tk){
   const f=findPos(tk); if(!f) return; const p=S[f.g][f.i]; opTk=tk;
@@ -743,7 +747,8 @@ document.getElementById('opBuy').onclick=buyMore;
 document.getElementById('opCancel').onclick=closeOp;
 document.querySelectorAll('#opPct button').forEach(b=>b.onclick=()=>{
   const f=findPos(opTk); if(!f) return; const p=S[f.g][f.i]; const pc=+b.dataset.p;
-  document.getElementById('opQt').value = pc===100 ? p.qtd : +(p.qtd*pc/100).toFixed(p.moeda==='USD'?4:0);
+  const casas = (f.g==='rendaFixa' || p.moeda==='USD') ? 4 : 0;
+  document.getElementById('opQt').value = pc===100 ? p.qtd : +(p.qtd*pc/100).toFixed(casas);
   document.querySelectorAll('#opPct button').forEach(x=>x.classList.remove('on'));
   b.classList.add('on');
 });
