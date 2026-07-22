@@ -52,7 +52,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .pad{display:grid;grid-template-columns:repeat(3,72px);gap:16px}
 .pad button{width:72px;height:72px;border-radius:50%;border:1px solid var(--card-b);
   background:var(--card);color:var(--text);font-size:26px;font-weight:500;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;transition:.12s;backdrop-filter:blur(10px)}
+  display:flex;align-items:center;justify-content:center;transition:.12s;backdrop-filter:blur(10px);
+  touch-action:manipulation}
 .pad button:active{background:rgba(255,255,255,.16);transform:scale(.93)}
 .pad button.ok{color:var(--green)}
 .pad button:disabled{opacity:.4}
@@ -157,6 +158,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .qbtns{display:flex;gap:8px;margin-bottom:16px}
 .qbtns button{flex:1;padding:11px;border-radius:12px;border:1px solid var(--card-b);background:var(--card);color:var(--muted);font-size:13px;font-weight:700;cursor:pointer}
 .qbtns button:active{background:rgba(255,255,255,.12);color:#fff}
+.qbtns button.on{background:rgba(36,120,212,.2);border-color:var(--blue-l);color:var(--text)}
 
 .grp-h{display:flex;align-items:center;gap:8px;margin:20px 4px 4px}
 .grp-h .d{width:9px;height:9px;border-radius:3px}
@@ -273,8 +275,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
       </div>
     </div>
     <div class="field"><label>Código / Ticker</label><input id="fTk" placeholder="ex: PETR4" autocapitalize="characters"></div>
-    <div class="field"><label>Quantidade</label><input id="fQt" type="number" inputmode="decimal" placeholder="ex: 100"></div>
-    <div class="field"><label>Preço pago (opcional)</label><input id="fPr" type="number" inputmode="decimal" placeholder="deixe em branco pra usar o preço de mercado"></div>
+    <div class="field"><label>Quantidade</label><input id="fQt" type="text" inputmode="decimal" placeholder="ex: 100"></div>
+    <div class="field"><label>Preço pago (opcional)</label><input id="fPr" type="text" inputmode="decimal" placeholder="deixe em branco pra usar o preço de mercado"></div>
     <div class="note">Comprou por um preço diferente do de hoje? Digite. Se deixar em branco, usa o preço de mercado atual (buscado na hora).</div>
     <div class="btns"><button class="cancel" id="mCancel">Cancelar</button><button class="ok" id="mOk">Adicionar compra</button></div>
   </div>
@@ -286,9 +288,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     <h3 id="opTitle">Operar</h3>
     <div class="hs" id="opSub"></div>
     <div class="field"><label>Quantidade a vender <span id="opMax" style="text-transform:none;color:var(--muted2);letter-spacing:0"></span></label>
-      <input id="opQt" type="number" inputmode="decimal"></div>
+      <input id="opQt" type="text" inputmode="decimal"></div>
     <div class="qbtns" id="opPct"><button data-p="25">25%</button><button data-p="50">Metade</button><button data-p="100">Tudo</button></div>
-    <div class="field"><label>Preço da venda (opcional)</label><input id="opPr" type="number" inputmode="decimal" placeholder="deixe em branco pra usar o preço de mercado"></div>
+    <div class="field"><label>Preço da venda (opcional)</label><input id="opPr" type="text" inputmode="decimal" placeholder="deixe em branco pra usar o preço de mercado"></div>
     <div class="note">Vender parte reduz a posição; vender tudo remove. Se não digitar preço, usa o de mercado de hoje (buscado na hora).</div>
     <div class="btns">
       <button class="cancel" id="opBuy">↑ Comprar mais</button>
@@ -343,6 +345,12 @@ const brl=v=>nBRL.format(v||0);
 const usd=v=>nUSD.format(v||0);
 const pct=v=>(v>=0?'+':'')+v.toFixed(2).replace('.',',')+'%';
 const cls=v=>v>=0?'up':'down';
+function toNum(v){
+  let s=String(v==null?'':v).trim();
+  if(!s) return NaN;
+  if(s.includes(',')) s=s.replace(/\./g,'').replace(',', '.');
+  return parseFloat(s);
+}
 
 // ---- compute ----
 function compute(){
@@ -556,14 +564,16 @@ function openOp(tk){
   document.getElementById('opMax').textContent=`(máx ${p.qtd.toLocaleString('pt-BR',{maximumFractionDigits:4})})`;
   document.getElementById('opQt').value=p.qtd;
   document.getElementById('opPr').value='';
+  document.querySelectorAll('#opPct button').forEach(x=>x.classList.remove('on'));
   document.getElementById('opModal').classList.remove('hidden');
 }
 function closeOp(){ document.getElementById('opModal').classList.add('hidden'); opTk=null; }
 async function doSell(){
   const f=findPos(opTk); if(!f) return;
-  let q=parseFloat(document.getElementById('opQt').value);
+  let q=toNum(document.getElementById('opQt').value);
   if(!(q>0)){ alert('Informe a quantidade a vender.'); return; }
-  const pr=document.getElementById('opPr').value.trim();
+  let pr=document.getElementById('opPr').value.trim();
+  if(pr){ const n=toNum(pr); if(!(n>0)){ alert('Preço inválido.'); return; } pr=String(n); }
   const btn=document.getElementById('opSell'); btn.disabled=true; btn.textContent='Enviando...';
   const d=await callAPI('vender',{ticker:opTk,qtd:q,preco:pr});
   btn.disabled=false; btn.textContent='Registrar venda';
@@ -580,8 +590,9 @@ function openModal(){ document.getElementById('modal').classList.remove('hidden'
 function closeModal(){ document.getElementById('modal').classList.add('hidden');
   fTk.value=fQt.value=fPr.value=''; }
 async function addPos(){
-  const tk=fTk.value.trim().toUpperCase(), qt=parseFloat(fQt.value);
-  const pr=fPr.value.trim();
+  const tk=fTk.value.trim().toUpperCase(), qt=toNum(fQt.value);
+  let pr=fPr.value.trim();
+  if(pr){ const n=toNum(pr); if(!(n>0)){ alert('Preço inválido.'); return; } pr=String(n); }
   if(!tk||!(qt>0)){ alert('Preencha ticker e quantidade.'); return; }
   const btn=document.getElementById('mOk'); btn.disabled=true; btn.textContent='Enviando...';
   const d=await callAPI('comprar',{mercado:curGrp,ticker:tk,qtd:qt,preco:pr});
@@ -658,6 +669,7 @@ async function tryLogin(){
   unlock();
 }
 buildPad();
+document.addEventListener('touchstart', function(){}, {passive:true});
 
 // ---- tabs / events ----
 function switchTab(name){
@@ -676,7 +688,10 @@ document.getElementById('opCancel').onclick=closeOp;
 document.querySelectorAll('#opPct button').forEach(b=>b.onclick=()=>{
   const f=findPos(opTk); if(!f) return; const p=S[f.g][f.i]; const pc=+b.dataset.p;
   document.getElementById('opQt').value = pc===100 ? p.qtd : +(p.qtd*pc/100).toFixed(p.moeda==='USD'?4:0);
+  document.querySelectorAll('#opPct button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
 });
+document.getElementById('opQt').oninput=()=>document.querySelectorAll('#opPct button').forEach(x=>x.classList.remove('on'));
 let extratoGrp='b3';
 document.querySelectorAll('#segExtrato button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#segExtrato button').forEach(x=>x.classList.remove('on'));
