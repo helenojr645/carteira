@@ -502,7 +502,8 @@ function renderPosicoes(){
   ];
   let h='<div class="pos-hint">Toque em uma posição para <b>comprar mais</b> ou <b>vender</b> (parcial ou tudo).</div>';
   groups.forEach(g=>{
-    h+=`<div class="grp-h"><span class="d" style="background:${g.d}"></span><span class="t">${g.t}</span><span class="s num">${brl(g.tot)}</span></div>`;
+    const sync = g.t.includes('Cripto') && S.criptoAtualizadoEm ? ` · sinc. ${S.criptoAtualizadoEm}` : '';
+    h+=`<div class="grp-h"><span class="d" style="background:${g.d}"></span><span class="t">${g.t}${sync?`<span style="color:var(--muted2);font-weight:400">${sync}</span>`:''}</span><span class="s num">${brl(g.tot)}</span></div>`;
     if(g.arr.length){ h+='<div class="card" style="padding:6px 16px">'+g.arr.sort((a,b)=>b.valor-a.valor).map(p=>grpRow(p)).join('')+'</div>'; }
     else if(g.t.includes('Cripto')){ h+=`<div class="card"><div class="empty"><span class="em">🔗</span>${S.criptoErro?('Erro: '+S.criptoErro):'Sem saldo na Binance.'}</div></div>`; }
     else { h+=`<div class="card"><div class="empty">Nenhuma posição.</div></div>`; }
