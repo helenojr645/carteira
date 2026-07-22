@@ -32,18 +32,19 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   display:flex;align-items:center;justify-content:center;font-size:30px;
   box-shadow:0 8px 30px rgba(22,97,184,.4)}
 .lock h1{font-size:20px;font-weight:700;letter-spacing:-.2px}
-.lock .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
-.lock-box{width:min(260px,80vw);display:flex;flex-direction:column;gap:12px}
-.lock-box input{width:100%;font-size:16px;color:var(--text);background:var(--card);
-  border:1px solid var(--card-b);border-radius:14px;padding:14px;font-family:inherit;text-align:center;
-  letter-spacing:2px}
-.lock-box input:focus{outline:none;border-color:var(--blue-l)}
-.lock-box input.err{border-color:var(--red);animation:shake .35s}
+.dots{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-bottom:26px;max-width:260px;min-height:16px}
+.dots i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--muted);transition:.15s}
+.dots i.on{background:var(--blue-l);border-color:var(--blue-l);box-shadow:0 0 12px var(--blue-l)}
+.dots.err i{border-color:var(--red);animation:shake .35s}
 @keyframes shake{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
-.lock-box button{padding:14px;border-radius:14px;border:none;font-size:15px;font-weight:700;cursor:pointer;
-  background:linear-gradient(135deg,var(--blue-l),var(--purple));color:#fff}
-.lock-box button:disabled{opacity:.6}
-.lock-msg{min-height:16px;color:var(--red);font-size:12px;text-align:center}
+.pad{display:grid;grid-template-columns:repeat(3,72px);gap:16px}
+.pad button{width:72px;height:72px;border-radius:50%;border:1px solid var(--card-b);
+  background:var(--card);color:var(--text);font-size:26px;font-weight:500;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:.12s;backdrop-filter:blur(10px)}
+.pad button:active{background:rgba(255,255,255,.16);transform:scale(.93)}
+.pad button.ok{color:var(--green)}
+.pad button:disabled{opacity:.4}
+.lock-msg{min-height:16px;color:var(--red);font-size:12px;text-align:center;margin-top:14px}
 
 /* ---------- APP ---------- */
 .app{position:relative;z-index:1;max-width:480px;margin:0 auto;
@@ -212,11 +213,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   <div class="logo">📊</div>
   <h1>Carteira</h1>
   <div class="sub">Digite sua senha</div>
-  <div class="lock-box">
-    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" placeholder="Senha">
-    <button id="pinOk">Entrar</button>
-    <div class="lock-msg" id="lockMsg"></div>
-  </div>
+  <div class="dots" id="dots"><i></i></div>
+  <div class="pad" id="pad"></div>
+  <div class="lock-msg" id="lockMsg"></div>
 </div>
 
 <!-- APP -->
@@ -399,7 +398,7 @@ function renderAllocCard(c){
   if(!items.length){
     return `<div class="card">
       <div class="alloc-hdr"><button class="back" id="allocBack">‹ Voltar</button><span class="t">${gd.label}</span></div>
-      <div class="empty"><span class="em">${allocFocus==='cripto'?'🔗':'📭'}</span>${allocFocus==='cripto'?'Nenhum saldo com preço médio na Binance ainda.':'Nenhuma posição neste grupo.'}</div>
+      <div class="empty"><span class="em">${allocFocus==='cripto'?'🔗':'📭'}</span>${allocFocus==='cripto'?(S.criptoErro?('Erro: '+S.criptoErro):'Nenhum saldo com preço médio na Binance ainda.'):'Nenhuma posição neste grupo.'}</div>
     </div>`;
   }
   const top=items.slice(0,7), rest=items.slice(7);
@@ -505,7 +504,7 @@ function renderPosicoes(){
   groups.forEach(g=>{
     h+=`<div class="grp-h"><span class="d" style="background:${g.d}"></span><span class="t">${g.t}</span><span class="s num">${brl(g.tot)}</span></div>`;
     if(g.arr.length){ h+='<div class="card" style="padding:6px 16px">'+g.arr.sort((a,b)=>b.valor-a.valor).map(p=>grpRow(p)).join('')+'</div>'; }
-    else if(g.t.includes('Cripto')){ h+=`<div class="card"><div class="empty"><span class="em">🔗</span>Sem saldo na Binance (ou chave ainda não configurada no servidor).</div></div>`; }
+    else if(g.t.includes('Cripto')){ h+=`<div class="card"><div class="empty"><span class="em">🔗</span>${S.criptoErro?('Erro: '+S.criptoErro):'Sem saldo na Binance.'}</div></div>`; }
     else { h+=`<div class="card"><div class="empty">Nenhuma posição.</div></div>`; }
   });
   document.getElementById('t-posicoes').innerHTML=h;
@@ -591,22 +590,45 @@ function unlock(){
   document.getElementById('fab').classList.remove('hidden');
   switchTab('resumo'); renderAll();
 }
+let pinBuf='';
+const dotsEl=document.getElementById('dots');
+function buildPad(){
+  const pad=document.getElementById('pad');
+  ['1','2','3','4','5','6','7','8','9','⌫','0','✓'].forEach(k=>{
+    const b=document.createElement('button');
+    b.textContent=k; if(k==='✓') b.className='ok';
+    b.onclick=()=>press(k); pad.appendChild(b);
+  });
+}
+function press(k){
+  if(k==='⌫'){ pinBuf=pinBuf.slice(0,-1); drawDots(); return; }
+  if(k==='✓'){ if(pinBuf) tryLogin(); return; }
+  if(pinBuf.length<12){ pinBuf+=k; }
+  drawDots();
+}
+function drawDots(){
+  dotsEl.classList.remove('err');
+  const n=Math.max(pinBuf.length,1);
+  let html='';
+  for(let i=0;i<n;i++) html+=`<i class="${i<pinBuf.length?'on':''}"></i>`;
+  dotsEl.innerHTML=html;
+}
 async function tryLogin(){
-  const val=document.getElementById('pinInput').value.trim();
-  if(!val) return;
-  const btn=document.getElementById('pinOk'), inp=document.getElementById('pinInput');
-  btn.disabled=true; btn.textContent='Entrando...';
+  if(!pinBuf) return;
+  const val=pinBuf;
+  document.querySelectorAll('#pad button').forEach(b=>b.disabled=true);
+  document.getElementById('lockMsg').textContent='Entrando...';
   const err=await attemptLogin(val);
-  btn.disabled=false; btn.textContent='Entrar';
+  document.querySelectorAll('#pad button').forEach(b=>b.disabled=false);
+  document.getElementById('lockMsg').textContent='';
   if(err){
     document.getElementById('lockMsg').textContent='Senha incorreta.';
-    inp.classList.add('err'); inp.value=''; setTimeout(()=>inp.classList.remove('err'),350);
+    dotsEl.classList.add('err'); pinBuf=''; setTimeout(drawDots,350);
     return;
   }
   unlock();
 }
-document.getElementById('pinOk').onclick=tryLogin;
-document.getElementById('pinInput').addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); });
+buildPad();
 
 // ---- tabs / events ----
 function switchTab(name){
