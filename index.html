@@ -43,7 +43,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:conic-gradient(from -60deg,var(--blue),var(--purple),var(--teal),var(--blue));
   display:flex;align-items:center;justify-content:center;font-size:30px;
   box-shadow:0 8px 30px rgba(22,97,184,.4)}
-.lock h1{font-size:20px;font-weight:700;letter-spacing:-.2px}
 .dots{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-bottom:26px;max-width:260px;min-height:16px}
 .dots i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--muted);transition:.15s}
 .dots i.on{background:var(--blue-l);border-color:var(--blue-l);box-shadow:0 0 12px var(--blue-l)}
@@ -70,17 +69,22 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .hdr-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
 .hdr-t{font-size:13px;font-weight:700;letter-spacing:1px;color:var(--muted)}
 .icon-btn{background:var(--card);border:1px solid var(--card-b);width:44px;height:44px;
-  border-radius:50%;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
-.icon-btn:active{color:#fff;background:rgba(255,255,255,.12)}
-.icon-btn svg{width:17px;height:17px}
+  border-radius:50%;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),background .15s,color .15s}
+.icon-btn:active{color:#fff;background:rgba(255,255,255,.12);transform:scale(.9)}
+.icon-btn svg{width:17px;height:17px;transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
 .icon-btn.spin svg{animation:spin .7s linear}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes valFade{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+.valFade{animation:valFade .3s ease}
 
-.tab{display:none} .tab.on{display:block;animation:fade .25s}
-@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.tab{display:none} .tab.on{display:block;animation:fade .28s cubic-bezier(.22,.9,.3,1)}
+@keyframes fade{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
 
 .card{background:var(--card);border:1px solid var(--card-b);border-radius:22px;
   padding:20px;backdrop-filter:blur(24px);margin-bottom:12px}
+#extratoCard{transition:transform .12s,background .12s}
+#extratoCard:active{transform:scale(.98);background:rgba(255,255,255,.08)}
 .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
 
 /* hero */
@@ -149,7 +153,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .hist-range{font-size:11px;color:var(--muted2);text-align:right;margin-top:8px}
 
 /* position rows */
-.pos{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid rgba(255,255,255,.06)}
+.pos{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid rgba(255,255,255,.06);
+  border-radius:12px;transition:background .15s,transform .15s;cursor:pointer}
+.pos:active{background:rgba(255,255,255,.06);transform:scale(.99)}
 .pos:last-child{border-bottom:none}
 .pos .ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;
   font-size:13px;font-weight:800;flex-shrink:0;background:rgba(255,255,255,.06)}
@@ -182,8 +188,11 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .fab{position:fixed;z-index:20;right:calc(50% - 240px + 20px);bottom:calc(var(--tab-h) + var(--sab) + 18px);
   width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;
   background:linear-gradient(135deg,var(--blue-l),var(--purple));color:#fff;font-size:30px;font-weight:300;
-  box-shadow:0 8px 26px rgba(22,97,184,.5);display:flex;align-items:center;justify-content:center}
-.fab:active{transform:scale(.92)}
+  box-shadow:0 8px 26px rgba(22,97,184,.5);display:flex;align-items:center;justify-content:center;
+  transition:transform .12s}
+.fab:active{transform:scale(.9)}
+@keyframes fabIn{from{transform:scale(0) rotate(-90deg);opacity:0}to{transform:scale(1) rotate(0);opacity:1}}
+.fab.fabIn{animation:fabIn .35s cubic-bezier(.34,1.56,.64,1)}
 @media(max-width:520px){.fab{right:20px}}
 
 /* op rows */
@@ -203,15 +212,19 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:rgba(10,14,26,.82);backdrop-filter:blur(20px);border-top:1px solid var(--card-b);
   display:flex}
 .tb{flex:1;background:none;border:none;color:var(--muted);cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600}
-.tb svg{width:22px;height:22px}
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600;
+  transition:color .15s,transform .12s}
+.tb svg{width:22px;height:22px;transition:transform .15s cubic-bezier(.34,1.56,.64,1)}
 .tb.on{color:var(--blue-l)}
+.tb:active{transform:scale(.92)}
+.tb.on svg{transform:scale(1.08)}
 
 /* modal */
 .modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);
-  display:flex;align-items:flex-end;justify-content:center}
+  display:flex;align-items:flex-end;justify-content:center;animation:modalBg .2s ease}
+@keyframes modalBg{from{opacity:0}to{opacity:1}}
 .sheet{width:100%;max-width:480px;background:#0d1324;border:1px solid var(--card-b);
-  border-radius:26px 26px 0 0;padding:22px 20px calc(24px + var(--sab));animation:up .28s}
+  border-radius:26px 26px 0 0;padding:22px 20px calc(24px + var(--sab));animation:up .32s cubic-bezier(.32,.72,0,1)}
 @keyframes up{from{transform:translateY(100%)}to{transform:none}}
 .sheet h3{font-size:18px;font-weight:800;margin-bottom:4px}
 .sheet .hs{font-size:13px;color:var(--muted);margin-bottom:18px}
@@ -226,7 +239,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   color:var(--muted);font-size:13px;font-weight:700;cursor:pointer}
 .seg button.on{background:rgba(36,120,212,.2);border-color:var(--blue-l);color:var(--text)}
 .btns{display:flex;gap:10px;margin-top:8px}
-.btns button{flex:1;padding:15px;border-radius:14px;border:none;font-size:15px;font-weight:700;cursor:pointer}
+.btns button{flex:1;padding:15px;border-radius:14px;border:none;font-size:15px;font-weight:700;cursor:pointer;
+  transition:transform .12s,opacity .12s}
+.btns button:active{transform:scale(.97);opacity:.85}
 .btns .cancel{background:var(--card);color:var(--muted)}
 .btns .ok{background:linear-gradient(135deg,var(--blue-l),var(--purple));color:#fff}
 .btns .ok:disabled{opacity:.6}
@@ -242,7 +257,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     <path d="M6 34 L16 24 L24 29 L42 9 V40 H6 Z" fill="#fff" opacity=".28"/>
     <path d="M6 34 L16 24 L24 29 L42 9" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
   </svg></div>
-  <h1>Carteira</h1>
   <div class="sub">Digite sua senha</div>
   <div class="dots" id="dots"><i></i></div>
   <div class="pad" id="pad"></div>
@@ -432,13 +446,13 @@ function renderAllocCard(c){
         <div class="donut">
           <div class="ring" style="background:conic-gradient(var(--c-b3) 0 ${g1}%,var(--c-ext) ${g1}% ${g2}%,var(--c-cripto) ${g2}% ${g3}%,var(--c-rf) ${g3}% 100%)"></div>
           <div class="hole"></div>
-          <div class="center"><div class="t">Total</div><div class="v num">${mK((c.total/1000).toFixed(0)+'k')}</div></div>
+          <div class="center"><div class="t">Total</div><div class="v num valFade">${mK((c.total/1000).toFixed(0)+'k')}</div></div>
         </div>
         <div class="legend">
-          <div class="leg" data-g="b3"><span class="dot" style="background:var(--c-b3)"></span><span class="n">Ações B3</span><span class="v num">${mVal(brl(c.totB3))}</span><span class="p num">${pB3.toFixed(0)}%</span><span class="arrow">›</span></div>
-          <div class="leg" data-g="ext"><span class="dot" style="background:var(--c-ext)"></span><span class="n">Exterior</span><span class="v num">${mVal(brl(c.totExt))}</span><span class="p num">${pExt.toFixed(0)}%</span><span class="arrow">›</span></div>
-          <div class="leg" data-g="cripto"><span class="dot" style="background:var(--c-cripto)"></span><span class="n">Cripto</span><span class="v num">${mVal(c.totCr>0?brl(c.totCr):'—')}</span><span class="p num">${pCr.toFixed(0)}%</span><span class="arrow">›</span></div>
-          <div class="leg" data-g="rf"><span class="dot" style="background:var(--c-rf)"></span><span class="n">Renda Fixa</span><span class="v num">${mVal(c.totRf>0?brl(c.totRf):'—')}</span><span class="p num">${pRf.toFixed(0)}%</span><span class="arrow">›</span></div>
+          <div class="leg" data-g="b3"><span class="dot" style="background:var(--c-b3)"></span><span class="n">Ações B3</span><span class="v num valFade">${mVal(brl(c.totB3))}</span><span class="p num">${pB3.toFixed(0)}%</span><span class="arrow">›</span></div>
+          <div class="leg" data-g="ext"><span class="dot" style="background:var(--c-ext)"></span><span class="n">Exterior</span><span class="v num valFade">${mVal(brl(c.totExt))}</span><span class="p num">${pExt.toFixed(0)}%</span><span class="arrow">›</span></div>
+          <div class="leg" data-g="cripto"><span class="dot" style="background:var(--c-cripto)"></span><span class="n">Cripto</span><span class="v num valFade">${mVal(c.totCr>0?brl(c.totCr):'—')}</span><span class="p num">${pCr.toFixed(0)}%</span><span class="arrow">›</span></div>
+          <div class="leg" data-g="rf"><span class="dot" style="background:var(--c-rf)"></span><span class="n">Renda Fixa</span><span class="v num valFade">${mVal(c.totRf>0?brl(c.totRf):'—')}</span><span class="p num">${pRf.toFixed(0)}%</span><span class="arrow">›</span></div>
         </div>
       </div>
       <div class="alloc-hint">Toque num grupo para ver a composição por ativo dentro dele.</div>
@@ -464,10 +478,10 @@ function renderAllocCard(c){
       <div class="donut">
         <div class="ring" style="background:conic-gradient(${stops})"></div>
         <div class="hole"></div>
-        <div class="center"><div class="t">Total</div><div class="v num">${mK((gd.tot/1000).toFixed(0)+'k')}</div></div>
+        <div class="center"><div class="t">Total</div><div class="v num valFade">${mK((gd.tot/1000).toFixed(0)+'k')}</div></div>
       </div>
       <div class="legend">
-        ${slices.map(s=>`<div class="leg"><span class="dot" style="background:${s.color}"></span><span class="n">${s.tk}</span><span class="v num">${mVal(brl(s.valor))}</span><span class="p num">${(gd.tot?s.valor/gd.tot*100:0).toFixed(0)}%</span></div>`).join('')}
+        ${slices.map(s=>`<div class="leg"><span class="dot" style="background:${s.color}"></span><span class="n">${s.tk}</span><span class="v num valFade">${mVal(brl(s.valor))}</span><span class="p num">${(gd.tot?s.valor/gd.tot*100:0).toFixed(0)}%</span></div>`).join('')}
       </div>
     </div>
   </div>`;
@@ -526,7 +540,7 @@ function renderResumo(){
   document.getElementById('t-resumo').innerHTML=`
   <div class="card hero">
     <div class="lbl">Patrimônio total</div>
-    <div class="big num">${mVal(brl(c.total))}</div>
+    <div class="big num valFade">${mVal(brl(c.total))}</div>
     <div class="row">
       <span class="badge ${cls(c.varDia)}">${c.varDia>=0?'▲':'▼'} ${pct(c.varDia)}</span>
       <span class="rent num ${cls(c.difDia)}">${c.difDia>=0?'+':''}${brl(c.difDia)} hoje</span>
@@ -744,7 +758,9 @@ function switchTab(name){
   document.querySelectorAll('.tb').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
   document.querySelectorAll('.tab').forEach(s=>s.classList.remove('on'));
   document.getElementById('t-'+name).classList.add('on');
-  document.getElementById('fab').style.display = name==='posicoes'?'flex':'none';
+  const fab=document.getElementById('fab');
+  fab.style.display = name==='posicoes'?'flex':'none';
+  if(name==='posicoes'){ fab.classList.remove('fabIn'); void fab.offsetWidth; fab.classList.add('fabIn'); }
 }
 document.querySelectorAll('.tb').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 document.getElementById('fab').onclick=openModal;
