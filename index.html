@@ -406,20 +406,30 @@ function compute(){
   const total=totB3+totExt+totCr+totRf, totalA=totB3a+totExta+totCra+totRfa;
   // L/P vs medio (so quem tem pm)
   let custo=0, valorComPm=0;
-  b3.concat(ext,cr,rf).forEach(p=>{ if(p.pm!=null){ custo+=p.pm*p.qtd*(p.moeda==='USD'?fx:1); valorComPm+=p.valor; }});
+  b3.concat(ext,cr,rf).forEach(p=>{ if(p.pm!=null){ custo+=custoUnitBRL(p,fx)*p.qtd; valorComPm+=p.valor; }});
   return {b3,ext,cr,rf,fx,totB3,totB3a,totExt,totExta,totCr,totCra,totRf,totRfa,total,totalA,
     varDia:totalA?(total/totalA-1)*100:0, difDia:total-totalA,
     lpTot:custo?(valorComPm-custo)/custo*100:0, lpDif:valorComPm-custo};
 }
+// Custo por unidade em reais. Se a posicao ja tem pmBRL guardado (comprada
+// depois da correcao do cambio), usa ele - assim o L/P conta tambem a alta/baixa
+// do dolar desde a compra, nao so o preco do ativo. Posicoes antigas (sem pmBRL)
+// caem no calculo de sempre: preco medio convertido pelo cambio de HOJE, que
+// nao capta a valorizacao cambial acumulada.
+function custoUnitBRL(p,fx){
+  if(p.pmBRL!=null) return p.pmBRL;
+  return p.pm*(p.moeda==='USD'?fx:1);
+}
 function enrich(p,fx,fxp){
   const valor=p.preco*p.qtd*fx, valorAnt=p.prev*p.qtd*fxp;
+  const cu=p.pm!=null?custoUnitBRL(p,fx):null;
   return {...p, valor, valorAnt, varDia:p.prev?(p.preco/p.prev-1)*100:0,
-    lpPct:p.pm!=null?(p.preco/p.pm-1)*100:null, moeda:p.moeda||(fx!==1?'USD':'BRL')};
+    lpPct:cu!=null?((p.preco*fx)/cu-1)*100:null, moeda:p.moeda||(fx!==1?'USD':'BRL')};
 }
 const sum=(a,k)=>a.reduce((s,x)=>s+(x[k]||0),0);
 function grpLp(arr,fx){
   let custo=0,valor=0;
-  arr.forEach(p=>{ if(p.pm!=null){ custo+=p.pm*p.qtd*(p.moeda==='USD'?fx:1); valor+=p.valor; }});
+  arr.forEach(p=>{ if(p.pm!=null){ custo+=custoUnitBRL(p,fx)*p.qtd; valor+=p.valor; }});
   return {pct:custo?(valor-custo)/custo*100:null, dif:valor-custo, hasPm:custo>0};
 }
 
