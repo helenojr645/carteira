@@ -34,6 +34,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 .up{color:var(--green)} .down{color:var(--red)}
 .hidden{display:none!important}
+.priv{filter:blur(8px);transition:filter .2s;user-select:none}
+body.vis-on .priv{filter:none}
 
 /* ---------- LOCK ---------- */
 .lock{position:fixed;inset:0;z-index:50;background:var(--bg);
@@ -254,9 +256,14 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 <div class="app hidden" id="app">
   <div class="hdr">
     <div class="hdr-l"><span class="hdr-dot"></span><span class="hdr-t">CARTEIRA</span></div>
-    <button class="icon-btn" id="refresh" aria-label="Atualizar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>
-    </button>
+    <div style="display:flex;gap:8px">
+      <button class="icon-btn" id="eyeBtn" aria-label="Mostrar valores">
+        <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/><line x1="2" y1="22" x2="22" y2="2"/></svg>
+      </button>
+      <button class="icon-btn" id="refresh" aria-label="Atualizar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>
+      </button>
+    </div>
   </div>
 
   <!-- RESUMO -->
@@ -424,13 +431,13 @@ function renderAllocCard(c){
         <div class="donut">
           <div class="ring" style="background:conic-gradient(var(--c-b3) 0 ${g1}%,var(--c-ext) ${g1}% ${g2}%,var(--c-cripto) ${g2}% ${g3}%,var(--c-rf) ${g3}% 100%)"></div>
           <div class="hole"></div>
-          <div class="center"><div class="t">Total</div><div class="v num">${(c.total/1000).toFixed(0)}k</div></div>
+          <div class="center"><div class="t">Total</div><div class="v num priv">${(c.total/1000).toFixed(0)}k</div></div>
         </div>
         <div class="legend">
-          <div class="leg" data-g="b3"><span class="dot" style="background:var(--c-b3)"></span><span class="n">Ações B3</span><span class="v num">${brl(c.totB3)}</span><span class="p num">${pB3.toFixed(0)}%</span><span class="arrow">›</span></div>
-          <div class="leg" data-g="ext"><span class="dot" style="background:var(--c-ext)"></span><span class="n">Exterior</span><span class="v num">${brl(c.totExt)}</span><span class="p num">${pExt.toFixed(0)}%</span><span class="arrow">›</span></div>
-          <div class="leg" data-g="cripto"><span class="dot" style="background:var(--c-cripto)"></span><span class="n">Cripto</span><span class="v num">${c.totCr>0?brl(c.totCr):'—'}</span><span class="p num">${pCr.toFixed(0)}%</span><span class="arrow">›</span></div>
-          <div class="leg" data-g="rf"><span class="dot" style="background:var(--c-rf)"></span><span class="n">Renda Fixa</span><span class="v num">${c.totRf>0?brl(c.totRf):'—'}</span><span class="p num">${pRf.toFixed(0)}%</span><span class="arrow">›</span></div>
+          <div class="leg" data-g="b3"><span class="dot" style="background:var(--c-b3)"></span><span class="n">Ações B3</span><span class="v num priv">${brl(c.totB3)}</span><span class="p num">${pB3.toFixed(0)}%</span><span class="arrow">›</span></div>
+          <div class="leg" data-g="ext"><span class="dot" style="background:var(--c-ext)"></span><span class="n">Exterior</span><span class="v num priv">${brl(c.totExt)}</span><span class="p num">${pExt.toFixed(0)}%</span><span class="arrow">›</span></div>
+          <div class="leg" data-g="cripto"><span class="dot" style="background:var(--c-cripto)"></span><span class="n">Cripto</span><span class="v num priv">${c.totCr>0?brl(c.totCr):'—'}</span><span class="p num">${pCr.toFixed(0)}%</span><span class="arrow">›</span></div>
+          <div class="leg" data-g="rf"><span class="dot" style="background:var(--c-rf)"></span><span class="n">Renda Fixa</span><span class="v num priv">${c.totRf>0?brl(c.totRf):'—'}</span><span class="p num">${pRf.toFixed(0)}%</span><span class="arrow">›</span></div>
         </div>
       </div>
       <div class="alloc-hint">Toque num grupo para ver a composição por ativo dentro dele.</div>
@@ -456,10 +463,10 @@ function renderAllocCard(c){
       <div class="donut">
         <div class="ring" style="background:conic-gradient(${stops})"></div>
         <div class="hole"></div>
-        <div class="center"><div class="t">Total</div><div class="v num">${(gd.tot/1000).toFixed(0)}k</div></div>
+        <div class="center"><div class="t">Total</div><div class="v num priv">${(gd.tot/1000).toFixed(0)}k</div></div>
       </div>
       <div class="legend">
-        ${slices.map(s=>`<div class="leg"><span class="dot" style="background:${s.color}"></span><span class="n">${s.tk}</span><span class="v num">${brl(s.valor)}</span><span class="p num">${(gd.tot?s.valor/gd.tot*100:0).toFixed(0)}%</span></div>`).join('')}
+        ${slices.map(s=>`<div class="leg"><span class="dot" style="background:${s.color}"></span><span class="n">${s.tk}</span><span class="v num priv">${brl(s.valor)}</span><span class="p num">${(gd.tot?s.valor/gd.tot*100:0).toFixed(0)}%</span></div>`).join('')}
       </div>
     </div>
   </div>`;
@@ -518,7 +525,7 @@ function renderResumo(){
   document.getElementById('t-resumo').innerHTML=`
   <div class="card hero">
     <div class="lbl">Patrimônio total</div>
-    <div class="big num">${brl(c.total)}</div>
+    <div class="big num priv">${brl(c.total)}</div>
     <div class="row">
       <span class="badge ${cls(c.varDia)}">${c.varDia>=0?'▲':'▼'} ${pct(c.varDia)}</span>
       <span class="rent num ${cls(c.difDia)}">${c.difDia>=0?'+':''}${brl(c.difDia)} hoje</span>
@@ -768,6 +775,18 @@ document.querySelectorAll('#segGrp button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#segGrp button').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); curGrp=b.dataset.g;
 });
+let valuesVisible=false;
+function setEyeIcon(){
+  document.getElementById('eyeIcon').innerHTML = valuesVisible
+    ? '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>'
+    : '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/><line x1="2" y1="22" x2="22" y2="2"/>';
+  document.getElementById('eyeBtn').setAttribute('aria-label', valuesVisible?'Ocultar valores':'Mostrar valores');
+}
+document.getElementById('eyeBtn').onclick=()=>{
+  valuesVisible=!valuesVisible;
+  document.body.classList.toggle('vis-on', valuesVisible);
+  setEyeIcon();
+};
 document.getElementById('refresh').onclick=async function(){
   this.classList.add('spin');
   const d=await callAPI('dados');
