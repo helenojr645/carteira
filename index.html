@@ -360,9 +360,10 @@ const PIN_KEY = 'carteira_pin_v1';
 let PIN = '';
 let S = { b3: [], ext: [], cripto: [], rendaFixa: [], fx: 1, fx_prev: 1, caixaExtUsd: 0, ops: [], historico: [] };
 
-async function callAPI(action, params) {
+async function callAPI(action, params, pinOverride) {
   params = params || {};
-  let u = API + '?action=' + action + '&pin=' + encodeURIComponent(PIN);
+  const pinToUse = pinOverride !== undefined ? pinOverride : PIN;
+  let u = API + '?action=' + action + '&pin=' + encodeURIComponent(pinToUse);
   Object.keys(params).forEach(function (k) {
     var v = params[k];
     if (v !== undefined && v !== null && v !== '') u += '&' + k + '=' + encodeURIComponent(v);
@@ -707,10 +708,19 @@ async function atualizarPrecoCriptoAoVivo(){
 }
 
 // ---- login ----
+// PIN so entra na variavel global depois que o servidor confirma - nunca antes.
+// loginSeq descarta a resposta de uma tentativa antiga que chega atrasada
+// (ex: login automatico com o PIN salvo x PIN digitado errado na hora, disputando
+// pra ver quem "abre" o app primeiro - causava logout com "senha incorreta" na
+// acao seguinte mesmo o app parecendo aberto).
+let loginSeq=0;
+const LOGIN_STALE={};
 async function attemptLogin(pin){
-  PIN=pin;
-  const d=await callAPI('dados');
+  const seq=++loginSeq;
+  const d=await callAPI('dados', {}, pin);
+  if(seq!==loginSeq) return LOGIN_STALE;
   if(d.error){ PIN=''; return d; }
+  PIN=pin;
   localStorage.setItem(PIN_KEY, pin);
   S=d;
   await atualizarPrecoCriptoAoVivo();
@@ -748,14 +758,16 @@ function drawDots(){
 async function tryLogin(){
   if(!pinBuf) return;
   const val=pinBuf;
+  pinBuf='';
   document.querySelectorAll('#pad button').forEach(b=>b.disabled=true);
   document.getElementById('lockSpinner').classList.remove('hidden');
   const err=await attemptLogin(val);
+  if(err===LOGIN_STALE) return;
   document.querySelectorAll('#pad button').forEach(b=>b.disabled=false);
   document.getElementById('lockSpinner').classList.add('hidden');
   if(err){
     document.getElementById('lockMsg').textContent='Senha incorreta.';
-    dotsEl.classList.add('err'); pinBuf=''; setTimeout(drawDots,350);
+    dotsEl.classList.add('err'); setTimeout(drawDots,350);
     return;
   }
   unlock();
@@ -826,10 +838,15 @@ document.getElementById('refresh').onclick=async function(){
 // ---- boot: tenta entrar sozinho se ja tem senha salva neste aparelho ----
 (async function boot(){
   const cached=localStorage.getItem(PIN_KEY);
-  if(cached){
-    const err=await attemptLogin(cached);
-    if(!err){ unlock(); return; }
-  }
+  if(!cached) return;
+  document.querySelectorAll('#pad button').forEach(b=>b.disabled=true);
+  document.getElementById('lockSpinner').classList.remove('hidden');
+  const err=await attemptLogin(cached);
+  if(err===LOGIN_STALE) return;
+  document.querySelectorAll('#pad button').forEach(b=>b.disabled=false);
+  document.getElementById('lockSpinner').classList.add('hidden');
+  if(!err){ unlock(); return; }
+  localStorage.removeItem(PIN_KEY);
 })();
 </script>
 </body>
