@@ -354,14 +354,22 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   </div>
 </div>
 
-<!-- BTC TEORICO (so visualizacao, salvo so neste navegador) -->
-<div class="modal hidden" id="btcTeoModal">
+<!-- SIMULADOR: posicao teorica (so visualizacao, salva so neste navegador) -->
+<div class="modal hidden" id="posTeoModal">
   <div class="sheet">
-    <h3>BTC teórico</h3>
-    <div class="hs">Só pra você ver o impacto no total e na evolução — não sincroniza com a Binance e nunca entra em PDF, WhatsApp ou análise. Fica salvo só neste navegador (troca de aparelho não traz o valor junto).</div>
-    <div class="field"><label>Quantidade (BTC)</label><input id="btcTeoQt" type="text" inputmode="decimal" placeholder="ex: 0.1"></div>
-    <div class="note">Deixe vazio ou 0 para remover.</div>
-    <div class="btns"><button class="cancel" id="btcTeoCancel">Cancelar</button><button class="ok" id="btcTeoOk">Salvar</button></div>
+    <h3 id="posTeoTitle">Simular uma compra</h3>
+    <div class="hs">Só pra você ver o impacto no total e na evolução — não compra nada de verdade, não sincroniza com a corretora e nunca entra em PDF, WhatsApp ou análise. Fica salvo só neste navegador (troca de aparelho não traz junto).</div>
+    <div class="field"><label>Onde</label>
+      <div class="seg" id="segTeo">
+        <button data-g="b3" class="on">Ação B3</button>
+        <button data-g="ext">Exterior</button>
+        <button data-g="cripto">Cripto</button>
+      </div>
+    </div>
+    <div class="field"><label>Código / Ticker</label><input id="teoTk" placeholder="ex: PETR4, IVV ou BTC" autocapitalize="characters"></div>
+    <div class="field"><label>Quantidade</label><input id="teoQt" type="text" inputmode="decimal" placeholder="ex: 100"></div>
+    <div class="note" id="teoRemoveNote">Deixe a quantidade em 0 para remover.</div>
+    <div class="btns"><button class="cancel" id="teoCancel">Cancelar</button><button class="ok" id="teoOk">Salvar</button></div>
   </div>
 </div>
 
@@ -371,45 +379,73 @@ const PIN_KEY = 'carteira_pin_v1';
 let PIN = '';
 let S = { b3: [], ext: [], cripto: [], rendaFixa: [], fx: 1, fx_prev: 1, caixaExtUsd: 0, ops: [], historico: [] };
 
-// ---- BTC teorico: posicao so de visualizacao, guardada so neste navegador
-// (localStorage). Nunca vai pro backend/Sheets, nunca entra em PDF, WhatsApp
-// ou na skill analise-carteira - pedido explicito do Heleno em 31/07. ----
-const BTC_TEO_KEY='carteira_btc_teo_v1', BTC_TEO_HIST_KEY='carteira_btc_teo_hist_v1';
-let btcTeo={qtd:0, preco:null, prev:null};
-function carregarBtcTeo(){
-  const v=Number(localStorage.getItem(BTC_TEO_KEY)||0);
-  btcTeo.qtd=(isFinite(v)&&v>0)?v:0;
-}
-function salvarBtcTeoQtd(qtd){
-  btcTeo.qtd=(isFinite(qtd)&&qtd>0)?qtd:0;
-  if(btcTeo.qtd>0) localStorage.setItem(BTC_TEO_KEY, String(btcTeo.qtd));
-  else localStorage.removeItem(BTC_TEO_KEY);
-}
-function lerBtcTeoHist(){
-  try{ return JSON.parse(localStorage.getItem(BTC_TEO_HIST_KEY)||'[]'); }catch(e){ return []; }
-}
-function registrarBtcTeoHistHoje(varDiaPct){
-  if(btcTeo.qtd<=0) return;
-  const hoje=new Date().toISOString().slice(0,10);
-  const arr=lerBtcTeoHist();
-  if(arr.length && arr[arr.length-1].data===hoje) return;
-  arr.push({data:hoje, varDiaPct});
-  while(arr.length>400) arr.shift();
-  localStorage.setItem(BTC_TEO_HIST_KEY, JSON.stringify(arr));
-}
-async function atualizarPrecoBtcTeo(){
-  if(btcTeo.qtd<=0) return;
-  try{
-    const r=await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
-    if(!r.ok) return;
-    const t=await r.json();
-    if(t && t.lastPrice){
-      btcTeo.preco=Number(t.lastPrice); btcTeo.prev=Number(t.prevClosePrice);
-      registrarBtcTeoHistHoje(btcTeo.prev?(btcTeo.preco/btcTeo.prev-1)*100:0);
+// ---- Posicoes teoricas: simulador de "e se eu comprasse X". So visualizacao,
+// guardado so neste navegador (localStorage). Nunca vai pro backend/Sheets,
+// nunca entra em PDF, WhatsApp ou na skill analise-carteira - pedido explicito
+// do Heleno em 31/07. Aceita qualquer ativo (acao B3, exterior ou cripto). ----
+const POS_TEO_KEY='carteira_pos_teo_v1', POS_TEO_HIST_KEY='carteira_pos_teo_hist_v1';
+const BTC_TEO_KEY_LEGADO='carteira_btc_teo_v1'; // versao anterior, so BTC - migrada abaixo
+const MERCADO_LABEL={b3:'B3',ext:'Exterior',cripto:'Cripto'};
+let posTeo=[]; // {id, mercado:'b3'|'ext'|'cripto', tk, qtd, preco, prev}
+function carregarPosTeo(){
+  const raw=localStorage.getItem(POS_TEO_KEY);
+  if(raw==null){
+    const vOld=Number(localStorage.getItem(BTC_TEO_KEY_LEGADO)||0);
+    if(isFinite(vOld)&&vOld>0){
+      posTeo=[{id:'teo-legado-btc', mercado:'cripto', tk:'BTC', qtd:vOld, preco:null, prev:null}];
+      salvarPosTeo();
     }
-  }catch(e){ /* sem internet agora: mantem o ultimo preco conhecido */ }
+    localStorage.removeItem(BTC_TEO_KEY_LEGADO);
+    return;
+  }
+  try{ posTeo=JSON.parse(raw)||[]; }catch(e){ posTeo=[]; }
 }
-carregarBtcTeo();
+function salvarPosTeo(){
+  if(posTeo.length) localStorage.setItem(POS_TEO_KEY, JSON.stringify(posTeo));
+  else localStorage.removeItem(POS_TEO_KEY);
+}
+function lerPosTeoHist(){
+  try{ return JSON.parse(localStorage.getItem(POS_TEO_HIST_KEY)||'[]'); }catch(e){ return []; }
+}
+function valorPosTeo(fx,fxp){
+  let v=0,vA=0;
+  posTeo.forEach(p=>{
+    const m=(p.mercado==='ext'||p.mercado==='cripto')?fx:1, mA=(p.mercado==='ext'||p.mercado==='cripto')?fxp:1;
+    if(p.preco) v+=p.preco*p.qtd*m;
+    if(p.prev) vA+=p.prev*p.qtd*mA;
+  });
+  return {v,vA};
+}
+function registrarPosTeoHistHoje(){
+  if(!posTeo.length) return;
+  const {v,vA}=valorPosTeo(S.fx,S.fx_prev);
+  if(!vA) return;
+  const varDiaPct=(v/vA-1)*100;
+  const hoje=new Date().toISOString().slice(0,10);
+  const arr=lerPosTeoHist();
+  if(arr.length && arr[arr.length-1].data===hoje) arr[arr.length-1].varDiaPct=varDiaPct;
+  else arr.push({data:hoje, varDiaPct});
+  while(arr.length>400) arr.shift();
+  localStorage.setItem(POS_TEO_HIST_KEY, JSON.stringify(arr));
+}
+async function atualizarPrecosPosTeo(){
+  if(!posTeo.length) return;
+  await Promise.all(posTeo.map(async p=>{
+    try{
+      if(p.mercado==='cripto'){
+        const r=await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol='+encodeURIComponent(p.tk+'USDT'));
+        if(!r.ok) return;
+        const t=await r.json();
+        if(t && t.lastPrice){ p.preco=Number(t.lastPrice); p.prev=Number(t.prevClosePrice); }
+      } else {
+        const d=await callAPI('precoUnico', {mercado:p.mercado, tk:p.tk});
+        if(d && d.preco){ p.preco=Number(d.preco); p.prev=Number(d.prev||d.preco); }
+      }
+    }catch(e){ /* sem internet/preco agora: mantem o ultimo conhecido */ }
+  }));
+  registrarPosTeoHistHoje();
+}
+carregarPosTeo();
 
 async function callAPI(action, params, pinOverride) {
   params = params || {};
@@ -459,12 +495,18 @@ function compute(){
   // L/P vs medio (so quem tem pm)
   let custo=0, valorComPm=0;
   b3.concat(ext,cr,rf).forEach(p=>{ if(p.pm!=null){ custo+=custoUnitBRL(p,fx)*p.qtd; valorComPm+=p.valor; }});
-  const teoValor=(btcTeo.qtd>0&&btcTeo.preco)?btcTeo.qtd*btcTeo.preco*fx:0;
-  const teoValorA=(btcTeo.qtd>0&&btcTeo.prev)?btcTeo.qtd*btcTeo.prev*fxp:0;
-  return {b3,ext,cr,rf,fx,totB3,totB3a,totExt,totExta,totCr,totCra,totRf,totRfa,total,totalA,
+  const teo=(posTeo||[]).map(p=>enrichTeo(p,fx,fxp));
+  const teoValor=sum(teo,'valor'), teoValorA=sum(teo,'valorAnt');
+  return {b3,ext,cr,rf,teo,fx,totB3,totB3a,totExt,totExta,totCr,totCra,totRf,totRfa,total,totalA,
     varDia:totalA?(total/totalA-1)*100:0, difDia:total-totalA,
     lpTot:custo?(valorComPm-custo)/custo*100:0, lpDif:valorComPm-custo,
     teoValor, totalComTeo:total+teoValor, totalComTeoA:totalA+teoValorA};
+}
+function enrichTeo(p,fx,fxp){
+  const m=(p.mercado==='ext'||p.mercado==='cripto')?fx:1, mA=(p.mercado==='ext'||p.mercado==='cripto')?fxp:1;
+  const valor=p.preco?p.preco*p.qtd*m:0, valorAnt=p.prev?p.prev*p.qtd*mA:0;
+  return {...p, valor, valorAnt, varDia:p.prev?(p.preco/p.prev-1)*100:0,
+    tkLabel:p.tk+' · '+(MERCADO_LABEL[p.mercado]||p.mercado)};
 }
 // Custo por unidade em reais. Se a posicao ja tem pmBRL guardado (comprada
 // depois da correcao do cambio), usa ele - assim o L/P conta tambem a alta/baixa
@@ -499,19 +541,20 @@ function allocGroup(c,g){
   return {b3:{arr:c.b3,tot:c.totB3,label:'Ações B3'},
     ext:{arr:c.ext,tot:c.totExt,label:'Exterior · Avenue'},
     cripto:{arr:c.cr,tot:c.totCr,label:'Cripto · Binance'},
-    rf:{arr:c.rf,tot:c.totRf,label:'Renda Fixa'}}[g];
+    rf:{arr:c.rf,tot:c.totRf,label:'Renda Fixa'},
+    teorico:{arr:c.teo,tot:c.teoValor,label:'Posições teóricas'}}[g];
 }
-const COR_TEO='rgba(0,200,150,.4)'; // BTC teorico: mesma familia do cripto, mais apagada, sempre com rotulo "teorico" ao lado
+const COR_TEO='rgba(154,140,255,.55)'; // posicoes teoricas: cor propria (roxa), sempre tracejada, nunca confunde com um grupo real
 function renderAllocCard(c){
-  const totalD=c.totalComTeo||c.total; // denom da composicao ja soma o BTC teorico, quando houver
+  const totalD=c.totalComTeo||c.total; // denom da composicao ja soma as posicoes teoricas, quando houver
   const pB3=totalD?c.totB3/totalD*100:0, pExt=totalD?c.totExt/totalD*100:0, pCr=totalD?c.totCr/totalD*100:0, pRf=totalD?c.totRf/totalD*100:0, pTeo=totalD?c.teoValor/totalD*100:0;
   if(!allocFocus){
-    const g1=pB3, g2=g1+pExt, g3=g2+pCr, g4=g3+pTeo;
+    const g1=pB3, g2=g1+pExt, g3=g2+pCr, g4=g3+pRf;
     return `<div class="card">
-      <div class="lbl" style="margin-bottom:16px">Alocação${c.teoValor>0?' <span style="font-weight:400;color:var(--muted2);font-size:11px">(com BTC teórico)</span>':''}</div>
+      <div class="lbl" style="margin-bottom:16px">Alocação${c.teoValor>0?' <span style="font-weight:400;color:var(--muted2);font-size:11px">(com posições teóricas)</span>':''}</div>
       <div class="alloc">
         <div class="donut">
-          <div class="ring" style="background:conic-gradient(var(--c-b3) 0 ${g1}%,var(--c-ext) ${g1}% ${g2}%,var(--c-cripto) ${g2}% ${g3}%${pTeo>0?`,${COR_TEO} ${g3}% ${g4}%`:''},var(--c-rf) ${g4}% 100%)"></div>
+          <div class="ring" style="background:conic-gradient(var(--c-b3) 0 ${g1}%,var(--c-ext) ${g1}% ${g2}%,var(--c-cripto) ${g2}% ${g3}%,var(--c-rf) ${g3}% ${g4}%${pTeo>0?`,${COR_TEO} ${g4}% 100%`:''})"></div>
           <div class="hole"></div>
           <div class="center"><div class="t">Total</div><div class="v num valFade">${mK((totalD/1000).toFixed(0)+'k')}</div></div>
         </div>
@@ -519,8 +562,8 @@ function renderAllocCard(c){
           <div class="leg" data-g="b3"><span class="dot" style="background:var(--c-b3)"></span><span class="n">Ações B3</span><span class="v num valFade">${mVal(brl(c.totB3))}</span><span class="p num">${pB3.toFixed(0)}%</span><span class="arrow">›</span></div>
           <div class="leg" data-g="ext"><span class="dot" style="background:var(--c-ext)"></span><span class="n">Exterior</span><span class="v num valFade">${mVal(brl(c.totExt))}</span><span class="p num">${pExt.toFixed(0)}%</span><span class="arrow">›</span></div>
           <div class="leg" data-g="cripto"><span class="dot" style="background:var(--c-cripto)"></span><span class="n">Cripto</span><span class="v num valFade">${mVal(c.totCr>0?brl(c.totCr):'—')}</span><span class="p num">${pCr.toFixed(0)}%</span><span class="arrow">›</span></div>
-          ${c.teoValor>0?`<div class="leg editBtcTeo"><span class="dot" style="background:${COR_TEO};border:1px dashed var(--c-cripto)"></span><span class="n">+ BTC teórico</span><span class="v num valFade">${mVal(brl(c.teoValor))}</span><span class="p num">${pTeo.toFixed(0)}%</span><span class="arrow">✎</span></div>`:''}
           <div class="leg" data-g="rf"><span class="dot" style="background:var(--c-rf)"></span><span class="n">Renda Fixa</span><span class="v num valFade">${mVal(c.totRf>0?brl(c.totRf):'—')}</span><span class="p num">${pRf.toFixed(0)}%</span><span class="arrow">›</span></div>
+          <div class="leg" data-g="teorico" style="border-top:1px dashed rgba(255,255,255,.12);margin-top:4px;padding-top:10px"><span class="dot" style="background:${COR_TEO};border:1px dashed #fff4"></span><span class="n">Posições teóricas</span><span class="v num valFade">${mVal(c.teoValor>0?brl(c.teoValor):'—')}</span><span class="p num">${pTeo.toFixed(0)}%</span><span class="arrow">›</span></div>
         </div>
       </div>
       <div class="alloc-hint">Toque num grupo para ver a composição por ativo dentro dele.</div>
@@ -528,19 +571,19 @@ function renderAllocCard(c){
   }
   const gd=allocGroup(c,allocFocus);
   const items=gd.arr.slice().sort((a,b)=>b.valor-a.valor);
-  const temTeo=allocFocus==='cripto'&&c.teoValor>0;
-  if(!items.length&&!temTeo){
+  const ehTeorico=allocFocus==='teorico';
+  if(!items.length){
     return `<div class="card">
       <div class="alloc-hdr"><button class="back" id="allocBack">‹ Voltar</button><span class="t">${gd.label}</span></div>
-      <div class="empty"><span class="em">${allocFocus==='cripto'?'🔗':'📭'}</span>${allocFocus==='cripto'?(S.criptoErro?('Erro: '+S.criptoErro):'Nenhum saldo com preço médio na Binance ainda.'):'Nenhuma posição neste grupo.'}</div>
+      <div class="empty"><span class="em">${ehTeorico?'🧪':allocFocus==='cripto'?'🔗':'📭'}</span>${ehTeorico?'Nenhuma posição teórica ainda.':allocFocus==='cripto'?(S.criptoErro?('Erro: '+S.criptoErro):'Nenhum saldo com preço médio na Binance ainda.'):'Nenhuma posição neste grupo.'}</div>
+      ${ehTeorico?'<button class="addPosTeo ok" style="width:100%;margin-top:14px">+ Simular uma compra</button>':''}
     </div>`;
   }
-  const gdTot=gd.tot+(temTeo?c.teoValor:0);
+  const gdTot=gd.tot;
   const top=items.slice(0,7), rest=items.slice(7);
   const restVal=sum(rest,'valor');
-  const slices=top.map((p,i)=>({tk:p.tk,valor:p.valor,color:PAL[i]}));
-  if(restVal>0) slices.push({tk:`Outros (${rest.length})`,valor:restVal,color:PAL_OTHER});
-  if(temTeo) slices.push({tk:'BTC teórico',valor:c.teoValor,color:COR_TEO,teo:true});
+  const slices=top.map((p,i)=>({tk:ehTeorico?p.tkLabel:p.tk,valor:p.valor,color:ehTeorico?COR_TEO:PAL[i],id:p.id}));
+  if(restVal>0 && !ehTeorico) slices.push({tk:`Outros (${rest.length})`,valor:restVal,color:PAL_OTHER});
   let acc=0;
   const stops=slices.map(s=>{ const p0=gdTot?s.valor/gdTot*100:0; const from=acc; acc+=p0; return `${s.color} ${from}% ${acc}%`; }).join(',');
   return `<div class="card">
@@ -552,10 +595,10 @@ function renderAllocCard(c){
         <div class="center"><div class="t">Total</div><div class="v num valFade">${mK((gdTot/1000).toFixed(0)+'k')}</div></div>
       </div>
       <div class="legend">
-        ${slices.map(s=>`<div class="leg${s.teo?' editBtcTeo':''}"><span class="dot" style="background:${s.color}${s.teo?';border:1px dashed var(--c-cripto)':''}"></span><span class="n">${s.tk}</span><span class="v num valFade">${mVal(brl(s.valor))}</span><span class="p num">${(gdTot?s.valor/gdTot*100:0).toFixed(0)}%</span>${s.teo?'<span class="arrow">✎</span>':''}</div>`).join('')}
+        ${slices.map(s=>`<div class="leg${ehTeorico?' editPosTeo':''}" ${ehTeorico?`data-id="${s.id}"`:''}><span class="dot" style="background:${s.color}${ehTeorico?';border:1px dashed #fff4':''}"></span><span class="n">${s.tk}</span><span class="v num valFade">${mVal(brl(s.valor))}</span><span class="p num">${(gdTot?s.valor/gdTot*100:0).toFixed(0)}%</span>${ehTeorico?'<span class="arrow">✎</span>':''}</div>`).join('')}
       </div>
-      ${temTeo?'<div class="alloc-hint">BTC teórico: view local, não sincroniza com a Binance.</div>':''}
     </div>
+    ${ehTeorico?'<button class="addPosTeo ok" style="width:100%;margin-top:14px">+ Simular outra compra</button><div class="alloc-hint">View local, não sincroniza — toque numa posição pra editar/remover.</div>':''}
   </div>`;
 }
 
@@ -572,12 +615,13 @@ function renderHistCard(){
     accD*=(1+(h.cdiDiaPct||0)/100);
     return {cart:(accC-1)*100, cdi:(accD-1)*100};
   });
-  // linha "carteira + BTC teorico": aproximada, usa o peso de HOJE do BTC
-  // teorico aplicado retroativamente aos ultimos dias registrados dele
-  // localmente (nao e contabil, e so pra ver a forma da curva combinada).
+  // linha "carteira + posicoes teoricas": aproximada, usa o peso de HOJE
+  // das posicoes teoricas aplicado retroativamente aos ultimos dias
+  // registrados delas localmente (nao e contabil, e so pra ver a forma
+  // da curva combinada).
   let ptsTeo=null, teoNota=null;
-  if(btcTeo.qtd>0){
-    const teoHist=lerBtcTeoHist();
+  if(posTeo.length>0){
+    const teoHist=lerPosTeoHist();
     if(teoHist.length>=2){
       const c=compute();
       const w=(c.total+c.teoValor)?c.teoValor/(c.total+c.teoValor):0;
@@ -589,7 +633,7 @@ function renderHistCard(){
         return (accComb-1)*100;
       });
     } else {
-      teoNota='A linha "+ BTC teórico" começa a aparecer em alguns dias (1 ponto por dia, contado a partir de hoje).';
+      teoNota='A linha "+ posições teóricas" começa a aparecer em alguns dias (1 ponto por dia, contado a partir de hoje).';
     }
   }
   const all=pts.flatMap(p=>[p.cart,p.cdi]).concat(ptsTeo||[]);
@@ -607,19 +651,19 @@ function renderHistCard(){
     <div class="hist-hdr">
       <div class="hist-leg"><span class="hist-dot" style="background:var(--blue-l)"></span>Carteira <b class="num ${cls(last.cart)}">${pct(last.cart)}</b></div>
       <div class="hist-leg"><span class="hist-dash"></span>CDI <b class="num ${cls(last.cdi)}">${pct(last.cdi)}</b></div>
-      ${lastTeo!=null?`<div class="hist-leg"><span class="hist-dot" style="background:var(--c-cripto)"></span>+ BTC teórico <b class="num ${cls(lastTeo)}">${pct(lastTeo)}</b></div>`:''}
+      ${lastTeo!=null?`<div class="hist-leg"><span class="hist-dot" style="background:${COR_TEO}"></span>+ teórico <b class="num ${cls(lastTeo)}">${pct(lastTeo)}</b></div>`:''}
     </div>
     <svg viewBox="0 0 ${W} ${H}" class="hist-chart" preserveAspectRatio="none">
       <line x1="${PAD}" y1="${y(0).toFixed(1)}" x2="${W-PAD}" y2="${y(0).toFixed(1)}" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
       <polyline points="${lineD}" fill="none" stroke="rgba(238,242,255,.42)" stroke-width="2" stroke-dasharray="4 3" stroke-linecap="round" stroke-linejoin="round"/>
-      ${lineTeo?`<polyline points="${lineTeo}" fill="none" stroke="var(--c-cripto)" stroke-width="2" stroke-dasharray="2 2" stroke-linecap="round" stroke-linejoin="round"/>`:''}
+      ${lineTeo?`<polyline points="${lineTeo}" fill="none" stroke="${COR_TEO}" stroke-width="2" stroke-dasharray="2 2" stroke-linecap="round" stroke-linejoin="round"/>`:''}
       <polyline points="${lineC}" fill="none" stroke="var(--blue-l)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
       <circle cx="${x(pts.length-1).toFixed(1)}" cy="${y(last.cdi).toFixed(1)}" r="3" fill="rgba(238,242,255,.55)"/>
-      ${lastTeo!=null?`<circle cx="${x(pts.length-1).toFixed(1)}" cy="${y(lastTeo).toFixed(1)}" r="3" fill="var(--c-cripto)"/>`:''}
+      ${lastTeo!=null?`<circle cx="${x(pts.length-1).toFixed(1)}" cy="${y(lastTeo).toFixed(1)}" r="3" fill="${COR_TEO}"/>`:''}
       <circle cx="${x(pts.length-1).toFixed(1)}" cy="${y(last.cart).toFixed(1)}" r="3.5" fill="var(--blue-l)"/>
     </svg>
     <div class="hist-range">${hist[0].data} — ${hist[hist.length-1].data}</div>
-    ${ptsTeo?`<div class="hist-range" style="opacity:.7">+ BTC teórico: peso de hoje aplicado aos últimos dias — view aproximada, não é contábil.</div>`:''}
+    ${ptsTeo?`<div class="hist-range" style="opacity:.7">+ posições teóricas: peso de hoje aplicado aos últimos dias — view aproximada, não é contábil.</div>`:''}
     ${teoNota?`<div class="hist-range" style="opacity:.7">${teoNota}</div>`:''}
   </div>`;
 }
@@ -646,10 +690,10 @@ function renderResumo(){
     </div>
     <div class="row"><span class="rent">Rentabilidade vs. preço médio: <b class="num ${cls(c.lpTot)}">${pct(c.lpTot)}</b> <span class="num">(${c.lpDif>=0?'+':''}${brl(c.lpDif)})</span></span></div>
     <div class="row" style="margin-top:8px;padding-top:8px;border-top:1px dashed rgba(255,255,255,.15);flex-wrap:wrap">
-      ${btcTeo.qtd>0
-        ? `<span class="rent" style="color:var(--c-cripto)">+ ${btcTeo.qtd} BTC teórico${c.teoValor?' ('+mVal(brl(c.teoValor))+')':''} → total ${mVal(brl(c.totalComTeo))}</span>
-           <button class="editBtcTeo" style="background:none;border:none;color:var(--muted2);text-decoration:underline;font-size:12px;padding:2px 0;margin-left:8px">editar</button>`
-        : `<button class="editBtcTeo" style="background:none;border:1px dashed var(--muted2);border-radius:8px;color:var(--muted2);font-size:12px;padding:4px 10px">+ ver com BTC teórico</button>`}
+      ${posTeo.length>0
+        ? `<span class="rent" style="color:var(--c-cripto)">+ ${posTeo.length} posiç${posTeo.length>1?'ões':'ão'} teóric${posTeo.length>1?'as':'a'}${c.teoValor?' ('+mVal(brl(c.teoValor))+')':''} → total ${mVal(brl(c.totalComTeo))}</span>
+           <button class="verPosTeo" style="background:none;border:none;color:var(--muted2);text-decoration:underline;font-size:12px;padding:2px 0;margin-left:8px">gerenciar</button>`
+        : `<button class="verPosTeo" style="background:none;border:1px dashed var(--muted2);border-radius:8px;color:var(--muted2);font-size:12px;padding:4px 10px">+ simular posições teóricas</button>`}
     </div>
   </div>
 
@@ -686,7 +730,9 @@ function renderResumo(){
   document.querySelectorAll('#t-resumo .leg[data-g]').forEach(el=>el.onclick=()=>{ allocFocus=el.dataset.g; renderResumo(); });
   const allocBack=document.getElementById('allocBack');
   if(allocBack) allocBack.onclick=()=>{ allocFocus=null; renderResumo(); };
-  document.querySelectorAll('.editBtcTeo').forEach(el=>el.onclick=abrirBtcTeoModal);
+  document.querySelectorAll('.verPosTeo').forEach(el=>el.onclick=()=>{ allocFocus='teorico'; renderResumo(); });
+  document.querySelectorAll('.addPosTeo').forEach(el=>el.onclick=()=>abrirPosTeoModal());
+  document.querySelectorAll('.editPosTeo').forEach(el=>el.onclick=()=>abrirPosTeoModal(el.dataset.id));
 }
 
 function grpRow(p){
@@ -816,7 +862,7 @@ async function attemptLogin(pin){
   PIN=pin;
   S=d;
   await atualizarPrecoCriptoAoVivo();
-  await atualizarPrecoBtcTeo();
+  await atualizarPrecosPosTeo();
   return null;
 }
 function unlock(){
@@ -924,21 +970,44 @@ document.getElementById('refresh').onclick=async function(){
   if(d.error){ this.classList.remove('spin'); alert('Erro ao atualizar: '+d.error); return; }
   S=d;
   await atualizarPrecoCriptoAoVivo();
-  await atualizarPrecoBtcTeo();
+  await atualizarPrecosPosTeo();
   this.classList.remove('spin');
   renderAll();
 };
 
-function abrirBtcTeoModal(){
-  document.getElementById('btcTeoQt').value=btcTeo.qtd>0?String(btcTeo.qtd):'';
-  document.getElementById('btcTeoModal').classList.remove('hidden');
+// ---- simulador: adicionar/editar/remover posicao teorica ----
+let teoEditId=null, teoEditGrp='b3';
+function abrirPosTeoModal(id){
+  teoEditId=id||null;
+  const item=id?posTeo.find(p=>p.id===id):null;
+  document.getElementById('posTeoTitle').textContent=item?'Editar posição teórica':'Simular uma compra';
+  teoEditGrp=item?item.mercado:'b3';
+  document.querySelectorAll('#segTeo button').forEach(b=>b.classList.toggle('on', b.dataset.g===teoEditGrp));
+  document.getElementById('teoTk').value=item?item.tk:'';
+  document.getElementById('teoQt').value=item?String(item.qtd):'';
+  document.getElementById('teoRemoveNote').textContent=item?'Deixe a quantidade em 0 para remover esta posição.':'Deixe a quantidade em 0 (ou apague) para não adicionar nada.';
+  document.getElementById('posTeoModal').classList.remove('hidden');
 }
-document.getElementById('btcTeoCancel').onclick=()=>document.getElementById('btcTeoModal').classList.add('hidden');
-document.getElementById('btcTeoOk').onclick=async ()=>{
-  const v=toNum(document.getElementById('btcTeoQt').value);
-  salvarBtcTeoQtd(isNaN(v)?0:v);
-  await atualizarPrecoBtcTeo();
-  document.getElementById('btcTeoModal').classList.add('hidden');
+document.querySelectorAll('#segTeo button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#segTeo button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); teoEditGrp=b.dataset.g;
+});
+document.getElementById('teoCancel').onclick=()=>document.getElementById('posTeoModal').classList.add('hidden');
+document.getElementById('teoOk').onclick=async ()=>{
+  const tk=(document.getElementById('teoTk').value||'').trim().toUpperCase();
+  const qtd=toNum(document.getElementById('teoQt').value);
+  if(teoEditId){
+    const idx=posTeo.findIndex(p=>p.id===teoEditId);
+    if(idx>=0){
+      if(!tk||!qtd||qtd<=0) posTeo.splice(idx,1);
+      else { posTeo[idx].tk=tk; posTeo[idx].qtd=qtd; posTeo[idx].mercado=teoEditGrp; posTeo[idx].preco=null; posTeo[idx].prev=null; }
+    }
+  } else if(tk && qtd>0){
+    posTeo.push({id:'teo-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), mercado:teoEditGrp, tk, qtd, preco:null, prev:null});
+  }
+  salvarPosTeo();
+  document.getElementById('posTeoModal').classList.add('hidden');
+  await atualizarPrecosPosTeo();
   renderAll();
 };
 
