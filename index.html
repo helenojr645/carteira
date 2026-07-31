@@ -709,10 +709,8 @@ async function atualizarPrecoCriptoAoVivo(){
 
 // ---- login ----
 // PIN so entra na variavel global depois que o servidor confirma - nunca antes.
-// loginSeq descarta a resposta de uma tentativa antiga que chega atrasada
-// (ex: login automatico com o PIN salvo x PIN digitado errado na hora, disputando
-// pra ver quem "abre" o app primeiro - causava logout com "senha incorreta" na
-// acao seguinte mesmo o app parecendo aberto).
+// Nao guarda PIN no aparelho: toda abertura do app pede a senha de novo (decisao
+// do Heleno em 30/07, trocando o "lembrar este aparelho" que existia antes).
 let loginSeq=0;
 const LOGIN_STALE={};
 async function attemptLogin(pin){
@@ -721,7 +719,6 @@ async function attemptLogin(pin){
   if(seq!==loginSeq) return LOGIN_STALE;
   if(d.error){ PIN=''; return d; }
   PIN=pin;
-  localStorage.setItem(PIN_KEY, pin);
   S=d;
   await atualizarPrecoCriptoAoVivo();
   return null;
@@ -835,19 +832,10 @@ document.getElementById('refresh').onclick=async function(){
   renderAll();
 };
 
-// ---- boot: tenta entrar sozinho se ja tem senha salva neste aparelho ----
-(async function boot(){
-  const cached=localStorage.getItem(PIN_KEY);
-  if(!cached) return;
-  document.querySelectorAll('#pad button').forEach(b=>b.disabled=true);
-  document.getElementById('lockSpinner').classList.remove('hidden');
-  const err=await attemptLogin(cached);
-  if(err===LOGIN_STALE) return;
-  document.querySelectorAll('#pad button').forEach(b=>b.disabled=false);
-  document.getElementById('lockSpinner').classList.add('hidden');
-  if(!err){ unlock(); return; }
-  localStorage.removeItem(PIN_KEY);
-})();
+// ---- boot: sempre pede a senha (nao lembra o aparelho) ----
+// Limpa qualquer PIN salvo de antes da mudanca de 30/07, pra nao ficar
+// guardado a toa no localStorage.
+localStorage.removeItem(PIN_KEY);
 </script>
 </body>
 </html>
