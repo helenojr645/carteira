@@ -780,7 +780,7 @@ function renderOperacoes(){
   else{ h+='<div class="card" style="padding:6px 16px">'+ops.slice().reverse().map(o=>{
     const res = o.resultado!=null ? `<div class="chips" style="justify-content:flex-end;margin-top:3px"><span class="chip ${cls(o.resultado)}">${o.resultado>=0?'+':''}${brl(o.resultado)} (${pct(o.resultadoPct)})</span></div>` : '';
     return `<div class="op"><span class="tag ${o.tipo==='COMPRA'?'c':'v'}">${o.tipo==='COMPRA'?'COMPRA':'VENDA'}</span>
-      <div class="mid"><div class="tk">${o.tk}</div><div class="dt">${o.data}</div></div>
+      <div class="mid"><div class="tk">${o.tk}</div><div class="dt">${o.data}${o.origem?` · ${o.origem}`:''}</div></div>
       <div class="rt">${brl(o.moeda==='USD'?o.preco*o.qtd*S.fx:o.preco*o.qtd)}<div class="s num">${o.qtd.toLocaleString('pt-BR',{maximumFractionDigits:2})} × ${o.moeda==='USD'?usd(o.preco):brl(o.preco)}</div>${res}</div>
     </div>`;}).join('')+'</div>'; }
   document.getElementById('t-operacoes').innerHTML=h;
